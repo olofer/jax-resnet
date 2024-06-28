@@ -40,6 +40,9 @@ class IterableDataset:
 
     def size(self):
         return self.X.shape[0]
+    
+    def has_weights(self):
+        return not self.w is None
 
     def shuffle(self):
         idx = np.random.permutation(self.X.shape[0])
