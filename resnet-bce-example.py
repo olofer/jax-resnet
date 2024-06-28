@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 import resnet_model as resffn
 
-from dataset_batcher import IterableDataset, random_split
+from dataset_batcher import IterableDataset, twoway_random_split
 from toy_dataset_utils import create_dataset, create_eval_mesh, plot_grid
 from train_test_patterns import update_many_epochs
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     print(X.shape)
     print(y.shape)
 
-    dataset1, dataset2 = random_split(X, y, args.batches)
+    dataset1, dataset2 = twoway_random_split(X, y, args.batches)
 
     if args.serve_jax:
         dataset1.serve_jax()
