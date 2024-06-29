@@ -40,14 +40,21 @@ def weighted_update_wd(params, x, y, w, step_size, weight_decay):
     )
 
 
-# TODO: give a reference to ESL 12th edition page ...
 def stack_contrast_datasets(
-    X0: np.array, X1: np.array, W0: float = 1.0, W1: float = 1.0
+    X0: np.array, X1: np.array, W0: float = None, W1: float = None
 ):
     N0 = X0.shape[0]
     N1 = X1.shape[0]
+
     X = np.row_stack([X0, X1])
     Y = np.row_stack([np.zeros((N0, 1)), np.ones((N1, 1))])
+
+    # These automatic weights follow Hastie et al ESL section 14.2.4
+    if W0 is None:
+        W0 = N1 / (N1 + N0)
+    if W1 is None:
+        W1 = N0 / (N1 + N0)
+
     W = np.row_stack([np.tile(W0, (N0, 1)), np.tile(W1, (N1, 1))])
     return X, Y, W
 
@@ -127,10 +134,10 @@ if __name__ == "__main__":
         F12 = np.array(resffn.batched_predict(params, X12))
         plt.figure(figsize=(10, 6))
         plot_grid(X12, F12, title_str="probability")
-        #class0 = y.flatten() == 0
-        #plt.scatter(X[class0, 0], X[class0, 1], alpha=0.04, color="black")
-        #class1 = y.flatten() == 1
-        #plt.scatter(X[class1, 0], X[class1, 1], alpha=0.04, color="white")
+        # class0 = y.flatten() == 0
+        # plt.scatter(X[class0, 0], X[class0, 1], alpha=0.04, color="black")
+        # class1 = y.flatten() == 1
+        # plt.scatter(X[class1, 0], X[class1, 1], alpha=0.04, color="white")
         plt.show()
 
     print("done.")
