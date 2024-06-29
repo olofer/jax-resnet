@@ -80,7 +80,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     X1, _ = create_dataset(args.N, typestr="moons")
-    X0, AB = create_uniform_contrast(X1, args.N0)
+    X0, AB = create_uniform_contrast(X1, args.N0, ep=0.20)
     X, Y, W = stack_contrast_datasets(X0, X1, W0=1.0, W1=1.0)
     print([X.shape, Y.shape, W.shape])
 
@@ -132,12 +132,21 @@ if __name__ == "__main__":
     if args.show_function:
         X12 = create_eval_mesh()
         F12 = np.array(resffn.batched_predict(params, X12))
+
+        plt.figure(figsize=(10, 6))
+        plot_grid(X12, F12, title_str="log-odds", fcn=lambda x: x)
+        plt.show()
+
+        plt.figure(figsize=(10, 6))
+        plot_grid(X12, F12, title_str="~density", fcn=lambda x: np.exp(x))
+        plt.show()
+
         plt.figure(figsize=(10, 6))
         plot_grid(X12, F12, title_str="probability")
-        # class0 = y.flatten() == 0
-        # plt.scatter(X[class0, 0], X[class0, 1], alpha=0.04, color="black")
-        # class1 = y.flatten() == 1
-        # plt.scatter(X[class1, 0], X[class1, 1], alpha=0.04, color="white")
+        class0 = Y.flatten() == 0
+        plt.scatter(X[class0, 0], X[class0, 1], alpha=0.04, color="black")
+        class1 = Y.flatten() == 1
+        plt.scatter(X[class1, 0], X[class1, 1], alpha=0.04, color="white")
         plt.show()
 
     print("done.")
