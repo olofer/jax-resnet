@@ -48,3 +48,19 @@ def create_dataset(
         y = 1 - y
 
     return X, np.array(y.reshape(X.shape[0], 1), dtype=np.float64)
+
+
+def create_uniform_contrast(X: np.array, N0: int, ep=0.10) -> np.array:
+    m = X.shape[1]
+    xmin = np.min(X, axis=0)
+    xmax = np.max(X, axis=0)
+    xmid = (xmin + xmax) / 2
+    xhwi = (xmax - xmin) / 2
+    a = xmid - xhwi * (1 + ep)
+    b = xmid + xhwi * (1 + ep)
+    C = [(a[c] + (b[c] - a[c]) * np.random.rand(X.shape[0])) for c in range(m)]
+    return np.column_stack(C), (a, b)
+
+
+def create_gaussian_contrast(X: np.array, N0: int) -> np.array:
+    return None
