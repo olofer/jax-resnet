@@ -7,11 +7,16 @@ def dataset_loss(modelparams, dataset: IterableDataset, lossfcn: callable):
     nb = len(dataset)
     losses = np.tile(np.nan, (nb,))
     samples = np.tile(np.nan, (nb,))
-    for b, (Xb, yb) in enumerate(dataset):
-        assert yb.shape[0] == Xb.shape[0]
-        assert yb.shape[1] == 1
-        samples[b] = Xb.shape[0]
-        losses[b] = lossfcn(modelparams, Xb, yb)
+    for b, XYb in enumerate(dataset):
+        assert len(XYb) >= 2, "expected X, y, .."
+        assert XYb[0].shape[0] == XYb[1].shape[0]
+        samples[b] = XYb[0].shape[0]
+        if len(XYb) == 2:
+            losses[b] = lossfcn(modelparams, XYb[0], XYb[1])
+        else:
+            assert len(XYb) == 3, "expected X, y, w"
+            assert XYb[0].shape[0] == XYb[2].shape[0]
+            losses[b] = lossfcn(modelparams, XYb[0], XYb[1], XYb[2])
 
     return np.sum(losses * samples) / np.sum(samples)
 
@@ -19,20 +24,33 @@ def dataset_loss(modelparams, dataset: IterableDataset, lossfcn: callable):
 def update_one_epoch(
     modelparams, dataset: IterableDataset, trainparams: dict, updatefcn: callable
 ):
-    for b, (Xb, yb) in enumerate(dataset):
-        assert yb.shape[0] == Xb.shape[0]
-        assert yb.shape[1] == 1
+    for b, XYb in enumerate(dataset):
+        assert len(XYb) == 2 or len(XYb) == 3, "expected (X,y) or (X,y,w)"
+        assert XYb[0].shape[0] == XYb[1].shape[0]
 
         if trainparams["bprint"] > 0 and b % trainparams["bprint"] == 0:
-            print("batch %i -- features are %i-by-%i" % (b, Xb.shape[0], Xb.shape[1]))
+            print(
+                "batch %i -- features are %i-by-%i"
+                % (b, XYb[0].shape[0], XYb[0].shape[1])
+            )
 
-        modelparams = updatefcn(
-            modelparams,
-            Xb,
-            yb,
-            trainparams["step_size"],
-            trainparams["weight_decay"] / len(dataset),
-        )
+        if len(XYb) == 2:
+            modelparams = updatefcn(
+                modelparams,
+                XYb[0],
+                XYb[1],
+                trainparams["step_size"],
+                trainparams["weight_decay"] / len(dataset),
+            )
+        else:
+            modelparams = updatefcn(
+                modelparams,
+                XYb[0],
+                XYb[1],
+                XYb[2],
+                trainparams["step_size"],
+                trainparams["weight_decay"] / len(dataset),
+            )
 
     return modelparams
 
