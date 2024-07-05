@@ -55,3 +55,11 @@ def predict(params, x):
 
 
 batched_predict = jax.vmap(predict, in_axes=(None, 0))
+
+
+def predict_multi_logits(params, x):
+    f = predict(params, x)
+    return f - jax.scipy.special.logsumexp(f)
+
+
+batched_predict_multi_logits = jax.vmap(predict_multi_logits, in_axes=(None, 0))
