@@ -53,8 +53,37 @@ def gillespie_sample_path(
     diffusion: callable,
     jump_rates: callable,
     deltatime: float = 0.1,
-    timeout: float = None,
-):
+    timeout: float = 100.0,
+) -> dict:
+    assert deltatime > 0
+    sqrt_dt = np.sqrt(deltatime)
+    kmax = int(np.ceil(timeout / deltatime))
+    x = np.copy(x0).flatten()
+    D = len(x)
+    X = np.tile(np.nan, (kmax, D))
+    k, t, event = int(0), float(0.0), False
+    while not event and k < kmax:
+        X[k, :] = x
+        rates = jump_rates(t, x)
+        assert np.all(rates > 0), "any (listed) jump rate must be positive"
+        total_hazard = np.sum(rates)
+        event = np.random.rand() < 1 - np.exp(-1.0 * deltatime * total_hazard)
+        which_event = (
+            int(0)
+            if not event
+            else 1 + np.random.choice(len(rates), p=rates / total_hazard)
+        )
+        x += drift(t, x) * deltatime + diffusion(t, x) * sqrt_dt * np.random.randn(D)
+        t += deltatime
+        k += 1
+
+    return {"X": X[:k, :], "event": which_event}
+
+
+def generate_gillespie_dataset():
+    # ...
+    # TODO: generate paths until at least N samples has been accumulated -- stack into table
+    # ...
     raise NotImplementedError
 
 
@@ -82,6 +111,21 @@ if __name__ == "__main__":
     #
     # TODO: generate the dataset via Gillespie sampling of a CTMC
     #
+
+    def mufunc(t, x):
+        return np.zeros(x.shape)
+
+    def sigmafunc(t, x):
+        return np.ones(x.shape)
+
+    def hazardfunc(t, x):
+        return np.array([0.1, 0.01, 0.025])
+
+    test = gillespie_sample_path(
+        np.zeros(2), mufunc, sigmafunc, hazardfunc, deltatime=0.01, timeout=10.0
+    )
+
+    print(test.keys())
 
     # print([X.shape, Y.shape])
 
