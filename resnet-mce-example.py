@@ -9,6 +9,13 @@ The state x moves via a stochastic process until a jump even occurs (or timed ou
 Multiclass logits can be fitted the usual way, and then the jump rates can be backed out.
 
 SEE: https://jax.readthedocs.io/en/latest/notebooks/neural_network_with_tfds_data.html
+
+EXAMPLE:
+  python3 resnet-mce-example.py  --show-loss
+
+TODO: back out rates from final model logits (knowing deltatime)
+TODO: present results
+TODO: space dependent rate functions
 """
 
 import argparse
@@ -28,9 +35,8 @@ from train_test_patterns import update_many_epochs
 import matplotlib.pyplot as plt
 
 
-def one_hot(x, k, dtype=jnp.float32):
-    """Create a one-hot encoding of x of size k."""
-    return jnp.array(x[:, None] == jnp.arange(k), dtype)
+def numpy_one_hot(x, k, dtype=np.float32):
+    return np.array(x[:, None] == np.arange(k), dtype)
 
 
 @jax.jit
@@ -80,11 +86,40 @@ def gillespie_sample_path(
     return {"X": X[:k, :], "event": which_event}
 
 
-def generate_gillespie_dataset():
-    # ...
-    # TODO: generate paths until at least N samples has been accumulated -- stack into table
-    # ...
-    raise NotImplementedError
+def generate_gillespie_dataset(
+    D: int, N: int, mu: callable, sigma: callable, rates: callable, **kwargs
+):
+    def expanded_target_(l: int, event: int) -> np.array:
+        y = np.zeros((l, 1), dtype=np.int32)
+        y[l - 1, 0] = event
+        return y
+
+    path_count = int(0)
+    n = int(0)
+    X = None
+    Y = None
+    while n < N:
+        path = gillespie_sample_path(
+            np.zeros(D),
+            drift=mu,
+            diffusion=sigma,
+            jump_rates=rates,
+            deltatime=kwargs["deltatime"],
+            timeout=kwargs["timeout"],
+        )
+        X = np.row_stack([X, path["X"]]) if X is not None else path["X"]
+        Y = (
+            np.row_stack([Y, expanded_target_(path["X"].shape[0], path["event"])])
+            if Y is not None
+            else expanded_target_(path["X"].shape[0], path["event"])
+        )
+        n += path["X"].shape[0]
+        assert n == X.shape[0]
+        assert X.shape[1] == D
+        assert len(Y) == n
+        path_count += 1
+
+    return X, Y, path_count
 
 
 if __name__ == "__main__":
@@ -97,8 +132,8 @@ if __name__ == "__main__":
     parser.add_argument("--eprint", type=int, default=100)
     parser.add_argument("--bprint", type=int, default=0)
     parser.add_argument("--jax-seed", type=int, default=42)
-    parser.add_argument("--N", type=int, default=1500)
-    parser.add_argument("--K", type=int, default=5)
+    parser.add_argument("--N", type=int, default=10000)
+    # parser.add_argument("--K", type=int, default=5)
     parser.add_argument("--sigma", type=float, default=0.10)
     parser.add_argument("--shuffle", action="store_true")
     parser.add_argument("--show-loss", action="store_true")
@@ -107,10 +142,6 @@ if __name__ == "__main__":
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--serve-jax", action="store_true")
     args = parser.parse_args()
-
-    #
-    # TODO: generate the dataset via Gillespie sampling of a CTMC
-    #
 
     def mufunc(t, x):
         return np.zeros(x.shape)
@@ -121,17 +152,27 @@ if __name__ == "__main__":
     def hazardfunc(t, x):
         return np.array([0.1, 0.01, 0.025])
 
-    test = gillespie_sample_path(
-        np.zeros(2), mufunc, sigmafunc, hazardfunc, deltatime=0.01, timeout=10.0
+    print("generating data (requesting at least %i samples).." % (args.N))
+    X, Y, paths_ = generate_gillespie_dataset(
+        int(2), args.N, mufunc, sigmafunc, hazardfunc, deltatime=0.05, timeout=10.0
     )
 
-    print(test.keys())
+    print("sampled from %i paths" % (paths_))
+    seen_event_types = np.unique(Y)
+    print([X.shape, Y.shape])
 
-    # print([X.shape, Y.shape])
+    num_possible_events = len(hazardfunc(0.0, np.array([0.0, 0.0]))) + 1
+    print(
+        "seen event types: %i, possible types: %i"
+        % (len(seen_event_types), num_possible_events)
+    )
+
+    Y = numpy_one_hot(Y.flatten(), num_possible_events)
+    print(Y.shape)
 
     layer_sizes = [args.units_per_layer for _ in range(args.layers + 1)]
     layer_sizes.insert(0, 2)  # state space dim. = 2
-    layer_sizes.append(args.K)  # K outputs
+    layer_sizes.append(num_possible_events)  # K-class output -> logits vector
 
     print(layer_sizes)
     params = resffn.init_network_params(layer_sizes, jax.random.PRNGKey(args.jax_seed))
@@ -164,14 +205,13 @@ if __name__ == "__main__":
     )
 
     if args.show_loss:
-        # plt.plot(losses["train"], label="train set")
-        # plt.plot(losses["test"], label="test set")
-        # plt.xlabel("Epoch number")
-        # plt.ylabel("MSE Loss")
-        # plt.grid(True)
-        # plt.legend()
-        # plt.show()
-        pass
+        plt.plot(losses["train"], label="train set")
+        plt.plot(losses["test"], label="test set")
+        plt.xlabel("Epoch number")
+        plt.ylabel("MCE Loss")
+        plt.grid(True)
+        plt.legend()
+        plt.show()
 
     if args.show_function:
         # Xhat = np.column_stack([np.linspace(-4.0, 4.0, 500)])
