@@ -13,7 +13,6 @@ SEE: https://jax.readthedocs.io/en/latest/notebooks/neural_network_with_tfds_dat
 EXAMPLE:
   python3 resnet-mce-example.py  --show-loss
 
-TODO: back out rates from final model logits (knowing deltatime)
 TODO: present results
 TODO: space dependent rate functions
 """
@@ -33,6 +32,13 @@ from toy_dataset_utils import (
 )
 from train_test_patterns import update_many_epochs
 import matplotlib.pyplot as plt
+
+
+# Each row of f = multiclass logits, with 0-th element the "no event" class
+def rates_from_logits(f: np.array, dt: float = 1.0):
+    f0 = f[:, 0].reshape((f.shape[0], 1))
+    C = -1.0 * f0 / (1 - np.exp(f0)) / dt
+    return np.exp(f[:, 1:]) * np.repeat(C, f.shape[1] - 1, axis=1)
 
 
 def numpy_one_hot(x, k, dtype=np.float32):
@@ -143,6 +149,9 @@ if __name__ == "__main__":
     parser.add_argument("--serve-jax", action="store_true")
     args = parser.parse_args()
 
+    DT = 0.05
+    TIMEOUT = 10.0
+
     def mufunc(t, x):
         return np.zeros(x.shape)
 
@@ -154,7 +163,7 @@ if __name__ == "__main__":
 
     print("generating data (requesting at least %i samples).." % (args.N))
     X, Y, paths_ = generate_gillespie_dataset(
-        int(2), args.N, mufunc, sigmafunc, hazardfunc, deltatime=0.05, timeout=10.0
+        int(2), args.N, mufunc, sigmafunc, hazardfunc, deltatime=DT, timeout=TIMEOUT
     )
 
     print("sampled from %i paths" % (paths_))
@@ -214,6 +223,12 @@ if __name__ == "__main__":
         plt.show()
 
     if args.show_function:
+        Yhat = resffn.batched_predict_multi_logits(params, X)
+        print(Yhat.shape)
+
+        lambda_hat = rates_from_logits(Yhat, dt=DT)
+        print(lambda_hat.shape)
+
         # Xhat = np.column_stack([np.linspace(-4.0, 4.0, 500)])
         # Fhat = np.array(resffn.batched_predict(params, Xhat))
 
@@ -228,6 +243,5 @@ if __name__ == "__main__":
         #    plt.xlabel("x")
         #    plt.ylabel("y[%i]" % (t))
         #    plt.show()
-        pass
 
     print("done.")
