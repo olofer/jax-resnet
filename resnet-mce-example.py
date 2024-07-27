@@ -142,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--shuffle", action="store_true")
     parser.add_argument("--show-loss", action="store_true")
     parser.add_argument("--show-function", action="store_true")
+    parser.add_argument("--eval-function", action="store_true")
     parser.add_argument("--step-size", type=float, default=1.0e-2)
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--serve-jax", action="store_true")
@@ -210,6 +211,19 @@ if __name__ == "__main__":
     params, losses = update_many_epochs(
         params, dataset1, trainparams, mce_update_wd, mce_loss, dataset2
     )
+
+    if args.eval_function:
+        Yhat = resffn.batched_predict_multi_logits(params, X)
+        Rhat = rates_from_logits(Yhat, dt=DT)
+        Rtru = np.row_stack([hazardfunc(None, X[k, :]) for k in range(X.shape[0])])
+        assert np.all(Rhat.shape == Rtru.shape)
+
+        print("mean estimated jump rates (along paths):")
+        print(np.mean(np.array(Rhat), axis=0))
+        print("mean true jump rates (along paths):")
+        print(np.mean(np.array(Rtru), axis=0))
+        print("mean absolute jump rate error (along paths):")
+        print(np.mean(np.abs(np.array(Rhat - Rtru)), axis=0))
 
     if args.show_loss:
         plt.plot(losses["train"], label="train set")

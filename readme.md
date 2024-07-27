@@ -26,4 +26,6 @@ python3 resnet-reg-example.py --show-loss --show-function --step-size 2e-2 --wei
 
 ### Multi-class classification 
 
-(TBD)
+```
+python3 resnet-mce-example.py  --show-loss --eval-function
+```
