@@ -11,10 +11,9 @@ Multiclass logits can be fitted the usual way, and then the jump rates can be ba
 SEE: https://jax.readthedocs.io/en/latest/notebooks/neural_network_with_tfds_data.html
 
 EXAMPLE:
-  python3 resnet-mce-example.py  --show-loss
+  python3 resnet-mce-example.py  --show-loss --show-function
 
-TODO: present results
-TODO: space dependent rate functions
+TODO: space dependent rate function (optionally)
 """
 
 import argparse
@@ -138,8 +137,7 @@ if __name__ == "__main__":
     parser.add_argument("--eprint", type=int, default=100)
     parser.add_argument("--bprint", type=int, default=0)
     parser.add_argument("--jax-seed", type=int, default=42)
-    parser.add_argument("--N", type=int, default=10000)
-    # parser.add_argument("--K", type=int, default=5)
+    parser.add_argument("--N", type=int, default=20000)
     parser.add_argument("--sigma", type=float, default=0.10)
     parser.add_argument("--shuffle", action="store_true")
     parser.add_argument("--show-loss", action="store_true")
@@ -159,7 +157,7 @@ if __name__ == "__main__":
         return np.ones(x.shape)
 
     def hazardfunc(t, x):
-        return np.array([0.1, 0.01, 0.025])
+        return np.array([0.10, 0.02, 0.20])
 
     print("generating data (requesting at least %i samples).." % (args.N))
     X, Y, paths_ = generate_gillespie_dataset(
@@ -223,25 +221,31 @@ if __name__ == "__main__":
         plt.show()
 
     if args.show_function:
-        Yhat = resffn.batched_predict_multi_logits(params, X)
-        print(Yhat.shape)
+        x1_range = np.quantile(np.abs(X[:, 0]), 0.90)
+        x2_range = np.quantile(np.abs(X[:, 1]), 0.90)
 
-        lambda_hat = rates_from_logits(Yhat, dt=DT)
-        print(lambda_hat.shape)
+        X12 = create_eval_mesh(
+            xrange=(-x1_range, x1_range), yrange=(-x2_range, x2_range)
+        )
+        Y12 = resffn.batched_predict_multi_logits(params, X12)
+        R12 = rates_from_logits(Y12, dt=DT)
 
-        # Xhat = np.column_stack([np.linspace(-4.0, 4.0, 500)])
-        # Fhat = np.array(resffn.batched_predict(params, Xhat))
+        print(X12.shape)
+        print(Y12.shape)
+        print(R12.shape)
 
-        # idx = np.argsort(X, axis=0).flatten()
-
-        # for t in range(args.M):
-        #    plt.scatter(X, Y[:, t], alpha=0.05, c="black", label="noisy samples")
-        #    plt.plot(X[idx, 0], Y0[idx, t], c="green", label="True target", alpha=0.50)
-        #    plt.plot(Xhat, Fhat[:, t], c="blue", label="ResNet output", alpha=0.50)
-        #    plt.grid(True)
-        #    plt.legend()
-        #    plt.xlabel("x")
-        #    plt.ylabel("y[%i]" % (t))
-        #    plt.show()
+        for c in range(R12.shape[1]):
+            plt.figure(figsize=(10, 6))
+            plot_grid(
+                X12,
+                R12[:, c],
+                title_str="$\lambda_{%i}$" % (c + 1),
+                fcn=lambda x: x,
+                cmap="viridis",
+            )
+            plt.scatter(x=X[:, 0], y=X[:, 1], alpha=0.05, c="black", s=1.0)
+            plt.gca().set_xlim((-x1_range, x1_range))
+            plt.gca().set_ylim((-x2_range, x2_range))
+            plt.show()
 
     print("done.")
