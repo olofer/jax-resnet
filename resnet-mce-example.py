@@ -13,7 +13,6 @@ SEE: https://jax.readthedocs.io/en/latest/notebooks/neural_network_with_tfds_dat
 EXAMPLE:
   python3 resnet-mce-example.py  --show-loss --show-function
 
-TODO: space dependent rate function (optionally)
 """
 
 import argparse
@@ -132,7 +131,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--layers", type=int, default=3, help="number of resnet layers")
     parser.add_argument("--units-per-layer", type=int, default=125)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--epochs", type=int, default=250)
     parser.add_argument("--batches", type=int, default=15)
     parser.add_argument("--eprint", type=int, default=100)
     parser.add_argument("--bprint", type=int, default=0)
@@ -143,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--show-loss", action="store_true")
     parser.add_argument("--show-function", action="store_true")
     parser.add_argument("--eval-function", action="store_true")
+    parser.add_argument("--which-function", type=str, default="A")
     parser.add_argument("--step-size", type=float, default=1.0e-2)
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--serve-jax", action="store_true")
@@ -157,8 +157,23 @@ if __name__ == "__main__":
     def sigmafunc(t, x):
         return np.ones(x.shape)
 
-    def hazardfunc(t, x):
-        return np.array([0.10, 0.02, 0.20])
+    if args.which_function == "A":
+
+        def hazardfunc(t, x):
+            return np.array([0.10, 0.02, 0.20])
+
+    elif args.which_function == "B":
+
+        def hazardfunc(t, x):
+            R = np.sqrt(np.sum(x * x))
+            return np.array(
+                [0.10 + 0.10 * np.sin(R) ** 2, 0.02 + 0.05 * R**2, 0.20 + 0.05 * R]
+            )
+
+    else:
+        raise ValueError("--which-function option value not recognized")
+    
+    print("employing hazard function %s" % (args.which_function))
 
     print("generating data (requesting at least %i samples).." % (args.N))
     X, Y, paths_ = generate_gillespie_dataset(

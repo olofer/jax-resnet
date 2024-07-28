@@ -29,3 +29,5 @@ python3 resnet-reg-example.py --show-loss --show-function --step-size 2e-2 --wei
 ```
 python3 resnet-mce-example.py  --show-loss --eval-function
 ```
+
+Standard multi-class function is converted to rate-functions in this example. Special type of data-generating process where this makes sense (see code).
