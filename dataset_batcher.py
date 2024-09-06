@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 
 class IterableDataset:
-    def __init__(self, X: np.array, y: np.array, batches: int, w: np.array = None):
+    def __init__(self, X: np.ndarray, y: np.ndarray, batches: int, w: np.ndarray = None):
         assert len(X.shape) == 2
         assert len(y.shape) == 2
         assert batches >= 1
@@ -58,8 +58,8 @@ class IterableDataset:
         self.serve_jnp = True
 
 
-def twoway_random_split(X: np.array, y: np.array, B: int, weights: np.array = None):
-    def local_slice(A: np.array, idx):
+def twoway_random_split(X: np.ndarray, y: np.ndarray, B: int, weights: np.ndarray = None):
+    def local_slice(A: np.ndarray, idx):
         assert len(A.shape) == 1 or len(A.shape) == 2
         return A[idx].reshape((len(idx), 1)) if len(A.shape) == 1 else A[idx, :]
 

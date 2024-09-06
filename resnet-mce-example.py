@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 
 
 # Each row of f = multiclass logits, with 0-th element the "no event" class
-def rates_from_logits(f: np.array, dt: float = 1.0):
+def rates_from_logits(f: np.ndarray, dt: float = 1.0):
     f0 = f[:, 0].reshape((f.shape[0], 1))
     C = -1.0 * f0 / (1 - np.exp(f0)) / dt
     return np.exp(f[:, 1:]) * np.repeat(C, f.shape[1] - 1, axis=1)
@@ -58,7 +58,7 @@ def mce_update_wd(params, x, y, step_size, weight_decay):
 
 
 def gillespie_sample_path(
-    x0: np.array,
+    x0: np.ndarray,
     drift: callable,
     diffusion: callable,
     jump_rates: callable,

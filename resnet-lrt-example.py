@@ -41,7 +41,7 @@ def weighted_update_wd(params, x, y, w, step_size, weight_decay):
 
 
 def stack_contrast_datasets(
-    X0: np.array, X1: np.array, W0: float = None, W1: float = None
+    X0: np.ndarray, X1: np.ndarray, W0: float = None, W1: float = None
 ):
     N0 = X0.shape[0]
     N1 = X1.shape[0]

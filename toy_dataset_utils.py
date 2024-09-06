@@ -50,7 +50,7 @@ def create_dataset(
     return X, np.array(y.reshape(X.shape[0], 1), dtype=np.float64)
 
 
-def create_uniform_contrast(X: np.array, N0: int, ep=0.10) -> np.array:
+def create_uniform_contrast(X: np.ndarray, N0: int, ep=0.10) -> np.ndarray:
     m = X.shape[1]
     xmin = np.min(X, axis=0)
     xmax = np.max(X, axis=0)
@@ -62,5 +62,5 @@ def create_uniform_contrast(X: np.array, N0: int, ep=0.10) -> np.array:
     return np.column_stack(C), (a, b)
 
 
-def create_gaussian_contrast(X: np.array, N0: int) -> np.array:
+def create_gaussian_contrast(X: np.ndarray, N0: int) -> np.ndarray:
     return None
