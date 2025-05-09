@@ -40,6 +40,14 @@ def relu(x):
     return jnp.maximum(0, x)
 
 
+def swish(x):
+    return x / (1.0 + jnp.exp(-1.0 * x))
+
+
+def softplus(x):
+    return jnp.log(1.0 + jnp.exp(x))
+
+
 def predict(params, x):
     LN_EPS = 1.0e-6
     activations = jnp.dot(params[0]["weight"], x) + params[0]["bias"]
@@ -63,3 +71,24 @@ def predict_multi_logits(params, x):
 
 
 batched_predict_multi_logits = jax.vmap(predict_multi_logits, in_axes=(None, 0))
+
+
+def predict_softplus(params, x):
+    LN_EPS = 1.0e-6
+    activations = jnp.dot(params[0]["weight"], x) + params[0]["bias"]
+    for p in params[1:-1]:
+        mean = jnp.mean(activations)
+        var = jnp.var(activations)
+        activations = (activations - mean) / jnp.sqrt(var + LN_EPS)
+        outputs = jnp.dot(p["weight"], activations) + p["bias"]
+        activations = softplus(outputs) + outputs
+
+    logits = jnp.dot(params[-1]["weight"], activations) + params[-1]["bias"]
+    return logits
+
+
+batched_predict_softplus = jax.vmap(predict_softplus, in_axes=(None, 0))
+
+grad_predict_softplus = jax.jacrev(predict_softplus, argnums=(1))
+
+batched_grad_predict_softplus = jax.vmap(grad_predict_softplus, in_axes=(None, 0))
