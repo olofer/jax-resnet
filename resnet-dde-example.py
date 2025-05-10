@@ -13,27 +13,24 @@ import jax.numpy as jnp
 
 import resnet_model as resffn
 
-# from dataset_batcher import IterableDataset, twoway_random_split
-# from toy_dataset_utils import create_dataset, create_eval_mesh, plot_grid
-# from train_test_patterns import update_many_epochs
-
 import matplotlib.pyplot as plt
 
 
-def binary_ce(f, y):
-    p = 1.0 / (1 + jnp.exp(-1 * f))
-    return -1 * (y * jnp.log(p) + (1 - y) * jnp.log(1 - p))
+@jax.jit
+def loss(params, features, targets, sigmas):
+    """
+    targets: drawn from a unit normal distribution
+    sigmas: sets the length scale of the smooth approximation of the density
+    """
+    grads = resffn.batched_grad_predict_softplus(params, features + sigmas * targets)
+    err = grads.squeeze() + targets / sigmas
+    mse_loss = jnp.mean(err * err)
+    return mse_loss
 
 
 @jax.jit
-def loss(params, features, targets):
-    preds = resffn.batched_predict(params, features)
-    return jnp.mean(binary_ce(preds, targets))
-
-
-@jax.jit
-def update_wd(params, x, y, step_size, weight_decay):
-    grads = jax.grad(loss)(params, x, y)
+def update_wd(params, x, y, w, step_size, weight_decay):
+    grads = jax.grad(loss)(params, x, y, w)
     return jax.tree_map(
         lambda p, dp: p - step_size * (dp + weight_decay * p), params, grads
     )
@@ -43,17 +40,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--layers", type=int, default=3, help="number of resnet layers")
-    parser.add_argument("--units-per-layer", type=int, default=125)
+    parser.add_argument("--units-per-layer", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=10_000)
-    parser.add_argument("--num-batches", type=int, default=100)
+    parser.add_argument("--num-batches", type=int, default=30)
     parser.add_argument("--jax-seed", type=int, default=42)
-    parser.add_argument("--N", type=int, default=1000)
+    parser.add_argument("--N", type=int, default=10_000)
     parser.add_argument("--D", type=int, default=5)
-    # parser.add_argument("--show-loss", action="store_true")
-    # parser.add_argument("--show-function", action="store_true")
-    parser.add_argument("--step-size", type=float, default=1.0e-2)
-    parser.add_argument("--weight-decay", type=float, default=0.0)
-    # parser.add_argument("--serve-jax", action="store_true")
+    parser.add_argument("--sigma", type=float, default=0.10)
+    parser.add_argument("--step-size", type=float, default=0.05)
+    parser.add_argument("--weight-decay", type=float, default=1.0e-8)
     args = parser.parse_args()
 
     assert args.step_size > 0
@@ -67,20 +62,19 @@ if __name__ == "__main__":
     params = resffn.init_network_params(layer_sizes, jax.random.PRNGKey(args.jax_seed))
 
     print(
-        "model has %i parameters, %i hidden layers, and takes %i inputs"
-        % (resffn.num_parameters(params), len(params) - 2, args.D)
+        "model has %i parameters, %i hidden layers (%i units each), and takes D=%i inputs"
+        % (resffn.num_parameters(params), len(params) - 2, args.units_per_layer, args.D)
     )
 
     print(jax.tree_util.tree_structure(params))
 
-    # TODO: the training for this example should simply be based on sampling from a unit Gaussian with dimension D
-    # ...
+    # Smoke test som functions
 
     X = jnp.array(np.random.randn(*(args.N, args.D)))
     print(X.shape)
 
-    fX = resffn.batched_predict_softplus(params, X)
-    print(fX.shape)
+    fX_pre = resffn.batched_predict_softplus(params, X)
+    print(fX_pre.shape)
 
     print(resffn.predict_softplus(params, X[0, :]))
     print(resffn.grad_predict_softplus(params, X[0, :]))
@@ -88,24 +82,60 @@ if __name__ == "__main__":
     gX = resffn.batched_grad_predict_softplus(params, X)
     print(gX.shape)
 
-    """if args.show_loss:
-        plt.plot(losses["train"], label="train set")
-        plt.plot(losses["test"], label="test set")
-        plt.xlabel("Epoch number")
-        plt.ylabel("Loss")
-        plt.grid(True)
-        plt.legend()
-        plt.show()
+    # Sampling-based training loop
 
-    if args.show_function:
-        X12 = create_eval_mesh()
-        F12 = np.array(resffn.batched_predict(params, X12))
-        plt.figure(figsize=(10, 6))
-        plot_grid(X12, F12, title_str="probability")
-        class0 = y.flatten() == 0
-        plt.scatter(X[class0, 0], X[class0, 1], alpha=0.04, color="black")
-        class1 = y.flatten() == 1
-        plt.scatter(X[class1, 0], X[class1, 1], alpha=0.04, color="white")
-        plt.show()"""
+    print(
+        "Sampling %i batches (each of size %i) with step-size=%f"
+        % (args.num_batches, args.batch_size, args.step_size)
+    )
+
+    for b in range(args.num_batches):
+
+        Xb = jnp.array(np.random.randn(*(args.batch_size, args.D)))  # features
+        Ub = jnp.array(np.random.randn(*(args.batch_size, args.D)))  # targets
+        Wb = jnp.array(np.tile(args.sigma, X.shape))
+
+        loss_ = loss(params, Xb, Ub, Wb)
+        print("batch %03i:" % (b), loss_)
+
+        params = update_wd(params, Xb, Ub, Wb, args.step_size, args.weight_decay)
+
+    # Evaluate the un-normalized log-density function
+
+    fX_post = resffn.batched_predict(params, X)
+    norm_sq_x = jnp.sum(X * X, axis=1)
+
+    plt.plot(
+        jnp.sqrt(norm_sq_x),
+        fX_pre,
+        linestyle="none",
+        marker="s",
+        alpha=0.10,
+        color="orange",
+        label="initial parameters",
+    )
+    plt.plot(
+        jnp.sqrt(norm_sq_x),
+        fX_post,
+        linestyle="none",
+        marker="o",
+        alpha=0.10,
+        color="blue",
+        label="fitted (un-normalized)",
+    )
+    plt.plot(
+        jnp.sqrt(norm_sq_x),
+        -0.5 * norm_sq_x,
+        linestyle="none",
+        marker=".",
+        alpha=0.25,
+        color="black",
+        label="ideal (WIP: normalized)",
+    )
+    plt.xlabel("$\|x\|_2$", fontsize=15)
+    plt.ylabel("log-density $s(x) = \log p(x)$", fontsize=15)
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
     print("done.")
