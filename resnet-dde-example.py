@@ -4,15 +4,12 @@ Basic demonstration of Denoising Density Estimation (using a ResNet with softplu
 
 import argparse
 import numpy as np
-
 import jax
 
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
-
 import resnet_model as resffn
-
 import matplotlib.pyplot as plt
 
 
@@ -39,20 +36,22 @@ def update_wd(params, x, y, w, step_size, weight_decay):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--layers", type=int, default=3, help="number of resnet layers")
-    parser.add_argument("--units-per-layer", type=int, default=100)
-    parser.add_argument("--batch-size", type=int, default=10_000)
+    parser.add_argument("--layers", type=int, default=5, help="number of resnet layers")
+    parser.add_argument("--units-per-layer", type=int, default=50)
+    parser.add_argument("--batch-size", type=int, default=25_000)
     parser.add_argument("--num-batches", type=int, default=30)
     parser.add_argument("--jax-seed", type=int, default=42)
     parser.add_argument("--N", type=int, default=10_000)
     parser.add_argument("--D", type=int, default=5)
     parser.add_argument("--sigma", type=float, default=0.10)
     parser.add_argument("--step-size", type=float, default=0.05)
-    parser.add_argument("--weight-decay", type=float, default=1.0e-8)
+    parser.add_argument("--weight-decay", type=float, default=0.0)
     args = parser.parse_args()
 
     assert args.step_size > 0
     assert args.weight_decay >= 0
+
+    assert args.sigma > 0, "sigma > 0 required"
 
     layer_sizes = [args.units_per_layer for _ in range(args.layers + 1)]
     layer_sizes.insert(0, args.D)
@@ -92,8 +91,8 @@ if __name__ == "__main__":
     for b in range(args.num_batches):
 
         Xb = jnp.array(np.random.randn(*(args.batch_size, args.D)))  # features
-        Ub = jnp.array(np.random.randn(*(args.batch_size, args.D)))  # targets
-        Wb = jnp.array(np.tile(args.sigma, X.shape))
+        Ub = jnp.array(np.random.randn(*Xb.shape))  # targets
+        Wb = jnp.array(np.tile(args.sigma, Xb.shape))
 
         loss_ = loss(params, Xb, Ub, Wb)
         print("batch %03i:" % (b), loss_)
@@ -104,6 +103,13 @@ if __name__ == "__main__":
 
     fX_post = resffn.batched_predict(params, X)
     norm_sq_x = jnp.sum(X * X, axis=1)
+
+    log_px = -0.5 * norm_sq_x - args.D * jnp.log(2 * np.pi) / 2
+    assert len(log_px.shape) == 1
+
+    log_unnormalized_integral = jax.scipy.special.logsumexp(
+        fX_post.flatten() - log_px
+    ) - jnp.log(X.shape[0])
 
     plt.plot(
         jnp.sqrt(norm_sq_x),
@@ -125,15 +131,25 @@ if __name__ == "__main__":
     )
     plt.plot(
         jnp.sqrt(norm_sq_x),
-        -0.5 * norm_sq_x,
+        fX_post - log_unnormalized_integral,
+        linestyle="none",
+        marker="o",
+        alpha=0.10,
+        color="green",
+        label="fitted (normalized)",
+    )
+    plt.plot(
+        jnp.sqrt(norm_sq_x),
+        log_px,  # -0.5 * norm_sq_x,
         linestyle="none",
         marker=".",
         alpha=0.25,
         color="black",
-        label="ideal (WIP: normalized)",
+        label="ideal/limit (normalized)",
     )
     plt.xlabel("$\|x\|_2$", fontsize=15)
     plt.ylabel("log-density $s(x) = \log p(x)$", fontsize=15)
+    plt.title("Denoising Density Estimation (DDE) test D=%i" % (X.shape[1]))
     plt.legend()
     plt.grid(True)
     plt.show()
