@@ -75,16 +75,16 @@ batched_predict_multi_logits = jax.vmap(predict_multi_logits, in_axes=(None, 0))
 
 def predict_softplus(params, x):
     LN_EPS = 1.0e-6
-    activations = jnp.dot(params[0]["weight"], x) + params[0]["bias"]
+    z = softplus(jnp.dot(params[0]["weight"], x) + params[0]["bias"])
     for p in params[1:-1]:
-        mean = jnp.mean(activations)
-        var = jnp.var(activations)
-        activations = (activations - mean) / jnp.sqrt(var + LN_EPS)
-        outputs = jnp.dot(p["weight"], activations) + p["bias"]
-        activations = softplus(outputs) + outputs
+        mean = jnp.mean(z)
+        var = jnp.var(z)
+        z_ = (z - mean) / jnp.sqrt(var + LN_EPS)
+        r = softplus(jnp.dot(p["weight"], z_) + p["bias"])
+        z = r + z
 
-    logits = jnp.dot(params[-1]["weight"], activations) + params[-1]["bias"]
-    return logits
+    out = jnp.dot(params[-1]["weight"], z) + params[-1]["bias"]
+    return out
 
 
 batched_predict_softplus = jax.vmap(predict_softplus, in_axes=(None, 0))

@@ -37,9 +37,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--layers", type=int, default=5, help="number of resnet layers")
-    parser.add_argument("--units-per-layer", type=int, default=50)
+    parser.add_argument("--units-per-layer", type=int, default=64)
     parser.add_argument("--batch-size", type=int, default=25_000)
-    parser.add_argument("--num-batches", type=int, default=30)
+    parser.add_argument("--num-batches", type=int, default=50)
     parser.add_argument("--jax-seed", type=int, default=42)
     parser.add_argument("--N", type=int, default=10_000)
     parser.add_argument("--D", type=int, default=5)
@@ -101,10 +101,10 @@ if __name__ == "__main__":
 
     # Evaluate the un-normalized log-density function
 
-    fX_post = resffn.batched_predict(params, X)
+    fX_post = resffn.batched_predict_softplus(params, X)
     norm_sq_x = jnp.sum(X * X, axis=1)
 
-    log_px = -0.5 * norm_sq_x - args.D * jnp.log(2 * np.pi) / 2
+    log_px = -0.5 * norm_sq_x - args.D * jnp.log(2 * jnp.pi) / 2
     assert len(log_px.shape) == 1
 
     log_unnormalized_integral = jax.scipy.special.logsumexp(
