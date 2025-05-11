@@ -16,7 +16,7 @@ python3 resnet-bce-example.py --show-loss --show-function --epochs 200 --layers 
 python3 resnet-lrt-example.py --show-loss --show-function --epochs 800 --layers 12 --weight-decay 1.0 --step-size 2e-4 --shuffle
 ```
 
-More layers appear to help here. Tricker to train the density-like function.
+More layers appear to help here. Trickier to train the density-like function.
 
 ### Multivariate (least-squares) regression
 
@@ -31,3 +31,11 @@ python3 resnet-mce-example.py  --show-loss --eval-function
 ```
 
 Standard multi-class function is converted to rate-functions in this example. Special type of data-generating process where this makes sense (see code).
+
+### Denoising Density Estimation (DDE)
+
+```
+python3 resnet-dde-example.py
+```
+
+(only illustrated with a plain normal distribution, so far).
