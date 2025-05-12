@@ -1,5 +1,8 @@
 """
 Basic demonstration of Denoising Density Estimation (using a ResNet with softplus activations).
+Learn an unnormalized log-density function s(x). The basic scheme is enabled via Tweedie's formula.
+
+Reference: https://doi.org/10.1109/TNNLS.2023.3308191
 """
 
 import argparse

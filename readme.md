@@ -38,4 +38,4 @@ Standard multi-class function is converted to rate-functions in this example. Sp
 python3 resnet-dde-example.py
 ```
 
-(only illustrated with a plain normal distribution, so far).
+(only illustrated with a plain normal distribution, so far; essentially Tweedie's formula).
