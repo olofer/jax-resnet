@@ -50,16 +50,16 @@ def softplus(x):
 
 def predict(params, x):
     LN_EPS = 1.0e-6
-    activations = jnp.dot(params[0]["weight"], x) + params[0]["bias"]
+    a = relu(jnp.dot(params[0]["weight"], x) + params[0]["bias"])
     for p in params[1:-1]:
-        mean = jnp.mean(activations)
-        var = jnp.var(activations)
-        activations = (activations - mean) / jnp.sqrt(var + LN_EPS)
-        outputs = jnp.dot(p["weight"], activations) + p["bias"]
-        activations = relu(outputs) + outputs
+        mean = jnp.mean(a)
+        var = jnp.var(a)
+        a_ = (a - mean) / jnp.sqrt(var + LN_EPS)
+        r = relu(jnp.dot(p["weight"], a_) + p["bias"])
+        a = r + a
 
-    logits = jnp.dot(params[-1]["weight"], activations) + params[-1]["bias"]
-    return logits
+    out = jnp.dot(params[-1]["weight"], a) + params[-1]["bias"]
+    return out
 
 
 batched_predict = jax.vmap(predict, in_axes=(None, 0))
